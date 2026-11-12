@@ -1,0 +1,33 @@
+# Stänger en förfrågan när agentkedjan (loop 2) har satt `levererad`.
+# Agenterna får inte stänga issues själva (molnets behörighetskontroll), så
+# GitHub gör det här med repots egen token. Kör manuellt för att städa
+# redan levererade.
+name: Stäng levererade
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  close:
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'levererad'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stäng
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUM: ${{ github.event.issue.number }}
+        run: |
+          if [ -n "$NUM" ]; then
+            nums="$NUM"
+          else
+            nums=$(gh issue list -R "$REPO" --label levererad --state open --json number -q '.[].number')
+          fi
+          for n in $nums; do
+            gh issue close "$n" -R "$REPO" --reason completed
+          done
