@@ -1,0 +1,70 @@
+# Flödesvakten för intaget: samma vakt som i ulrik-s/ava, men för
+# förfrågningarna här. Flödet och koden hämtas från ulrik-s/ava (publikt):
+# tooling/agents/flow.yaml, maskinen `intake`. Se docs/agent-flow.md där.
+#
+# Läge: repovariabeln FLOW_GUARD_MODE (enforce | report, standard report).
+name: Flödesvakt
+
+on:
+  issues:
+    types: [labeled]
+  schedule:
+    - cron: "20 * * * *"
+  workflow_dispatch:
+    inputs:
+      normalize:
+        description: "Städa intaget till ett tillstånd per förfrågan (skriv: intake); tomt = kör klockan"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: flow-${{ github.event.issue.number || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  FLOW_GUARD_MODE: ${{ vars.FLOW_GUARD_MODE || 'report' }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  guard:
+    name: Flödesvakt (etikett)
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ulrik-s/ava
+          ref: main
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - run: bun tooling/scripts/flow-guard.ts
+        env:
+          # Händelsestyrningen: startar tillståndets agent direkt (verifierad,
+          # dubblett → L2). Saknas hemligheten tar schemat det i stället.
+          ROUTINE_TOKEN_L2: ${{ secrets.ROUTINE_TOKEN_L2 }}
+
+  clock:
+    name: Flödesvakt (klocka)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ulrik-s/ava
+          ref: main
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - env:
+          NORMALIZE: ${{ github.event.inputs.normalize }}
+        run: |
+          if [ -n "$NORMALIZE" ]; then
+            bun tooling/scripts/flow-guard.ts normalize "$NORMALIZE"
+          else
+            bun tooling/scripts/flow-watchdog.ts intake
+          fi
