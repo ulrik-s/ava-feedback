@@ -69,4 +69,6 @@ jobs:
             bun tooling/scripts/flow-guard.ts normalize "$NORMALIZE"
           else
             bun tooling/scripts/flow-watchdog.ts intake
+            # Statussidan "Agentkedjans status" + push vid nya larm (läser även ulrik-s/ava, som är publikt).
+            bun tooling/scripts/flow-health.ts
           fi
