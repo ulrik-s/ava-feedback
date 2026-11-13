@@ -8,6 +8,8 @@ name: Flödesvakt
 on:
   issues:
     types: [labeled]
+  issue_comment:
+    types: [created]
   schedule:
     - cron: "20 * * * *"
   workflow_dispatch:
@@ -72,3 +74,22 @@ jobs:
             # Statussidan "Agentkedjans status" + push vid nya larm (läser även ulrik-s/ava, som är publikt).
             bun tooling/scripts/flow-health.ts
           fi
+
+  # Svar i kommentarer (användaren från AVA, eller Ulrik på något blockerat)
+  # startar rätt agent direkt — rutinernas egna GitHub-händelser täcker inte kommentarer.
+  comment:
+    name: Flödesvakt (svar)
+    if: github.event_name == 'issue_comment'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ulrik-s/ava
+          ref: main
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - run: bun tooling/scripts/flow-comment.ts
+        env:
+          ROUTINE_TOKEN_L1: ${{ secrets.ROUTINE_TOKEN_L1 }}
+          ROUTINE_TOKEN_L2: ${{ secrets.ROUTINE_TOKEN_L2 }}
