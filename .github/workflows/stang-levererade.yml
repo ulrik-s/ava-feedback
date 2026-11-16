@@ -1,7 +1,7 @@
-# Stänger en förfrågan när agentkedjan (loop 2) har satt `levererad`.
-# Agenterna får inte stänga issues själva (molnets behörighetskontroll), så
-# GitHub gör det här med repots egen token. Kör manuellt för att städa
-# redan levererade.
+# Stänger en förfrågan när agentkedjan har satt `levererad` (loop 2) eller
+# `uppdelad` (loop 1: delad i egna förfrågningar). Agenterna får inte stänga
+# issues själva (molnets behörighetskontroll), så GitHub gör det här med
+# repots egen token. Kör manuellt för att städa redan levererade/uppdelade.
 name: Stäng levererade
 
 on:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   close:
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'levererad'
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'levererad' || github.event.label.name == 'uppdelad'
     runs-on: ubuntu-latest
     steps:
       - name: Stäng
@@ -26,8 +26,12 @@ jobs:
           if [ -n "$NUM" ]; then
             nums="$NUM"
           else
-            nums=$(gh issue list -R "$REPO" --label levererad --state open --json number -q '.[].number')
+            nums=$(
+              gh issue list -R "$REPO" --label levererad --state open --json number -q '.[].number'
+              gh issue list -R "$REPO" --label uppdelad --state open --json number -q '.[].number'
+            )
           fi
           for n in $nums; do
             gh issue close "$n" -R "$REPO" --reason completed
           done
+          
