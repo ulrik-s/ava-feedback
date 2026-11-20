@@ -47,8 +47,10 @@ jobs:
       - run: bun tooling/scripts/flow-guard.ts
         env:
           # Händelsestyrningen: startar tillståndets agent direkt (verifierad,
-          # dubblett → L2). Saknas hemligheten tar schemat det i stället.
+          # dubblett, designas → L2; design-granskas → L3). Saknas hemligheten
+          # tar schemat det i stället.
           ROUTINE_TOKEN_L2: ${{ secrets.ROUTINE_TOKEN_L2 }}
+          ROUTINE_TOKEN_L3: ${{ secrets.ROUTINE_TOKEN_L3 }}
 
   clock:
     name: Flödesvakt (klocka)
@@ -66,6 +68,7 @@ jobs:
           NORMALIZE: ${{ github.event.inputs.normalize }}
           # Knuffen startar agenten igen för förfrågningar som stått still.
           ROUTINE_TOKEN_L2: ${{ secrets.ROUTINE_TOKEN_L2 }}
+          ROUTINE_TOKEN_L3: ${{ secrets.ROUTINE_TOKEN_L3 }}
         run: |
           if [ -n "$NORMALIZE" ]; then
             bun tooling/scripts/flow-guard.ts normalize "$NORMALIZE"
@@ -93,3 +96,4 @@ jobs:
         env:
           ROUTINE_TOKEN_L1: ${{ secrets.ROUTINE_TOKEN_L1 }}
           ROUTINE_TOKEN_L2: ${{ secrets.ROUTINE_TOKEN_L2 }}
+          ROUTINE_TOKEN_L3: ${{ secrets.ROUTINE_TOKEN_L3 }}
