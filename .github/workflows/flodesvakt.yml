@@ -23,8 +23,11 @@ permissions:
   contents: read
   issues: write
 
+# En kö per förfrågan OCH etikett (ulrik-s/ava#1781): GitHub håller bara en
+# väntande körning per grupp, och två etiketter i följd avbröt annars den
+# första — det gamla tillståndet blev kvar och agenten startades aldrig.
 concurrency:
-  group: flow-${{ github.event.issue.number || github.run_id }}
+  group: flow-${{ github.event.issue.number || github.run_id }}-${{ github.event.label.name || github.event.action || 'x' }}
   cancel-in-progress: false
 
 env:
