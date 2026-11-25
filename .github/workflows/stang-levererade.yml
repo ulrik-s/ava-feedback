@@ -2,37 +2,52 @@
 # `uppdelad` (loop 1: delad i egna förfrågningar) eller `finns-redan`
 # (loop 1: användaren har fått hjälp att hitta funktionen). Agenterna får inte
 # stänga issues själva (molnets behörighetskontroll), så GitHub gör det här med
-# repots egen token. Kör manuellt för att städa redan avslutade.
+# repots egen token.
+#
+# Sveper ALLA öppna sådana varje gång (inte bara den som just fick etiketten),
+# med REST och omförsök: 2026-11-25 dog stängningen på ett tillfälligt
+# GraphQL-fel hos GitHub och fyra levererade kort blev stående på tavlan. Körs
+# också efter varje körning av flödesvakten (minst varje timme), som reserv.
 name: Stäng levererade
 
 on:
   issues:
     types: [labeled]
+  workflow_run:
+    workflows: ["Flödesvakt"]
+    types: [completed]
   workflow_dispatch: {}
 
 permissions:
   issues: write
 
+concurrency:
+  group: stang-levererade
+  cancel-in-progress: false
+
 jobs:
   close:
-    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'levererad' || github.event.label.name == 'uppdelad' || github.event.label.name == 'finns-redan'
+    if: >-
+      github.event_name != 'issues' ||
+      github.event.label.name == 'levererad' || github.event.label.name == 'uppdelad' || github.event.label.name == 'finns-redan'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Stäng
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          NUM: ${{ github.event.issue.number }}
         run: |
-          if [ -n "$NUM" ]; then
-            nums="$NUM"
-          else
-            nums=$(
-              gh issue list -R "$REPO" --label levererad --state open --json number -q '.[].number'
-              gh issue list -R "$REPO" --label uppdelad --state open --json number -q '.[].number'
-              gh issue list -R "$REPO" --label finns-redan --state open --json number -q '.[].number'
-            )
-          fi
-          for n in $nums; do
-            gh issue close "$n" -R "$REPO" --reason completed
+          failed=0
+          for label in levererad uppdelad finns-redan; do
+            nums=$(gh api "repos/$REPO/issues?labels=$label&state=open&per_page=100" --jq '.[] | select(.pull_request | not) | .number') || { failed=1; continue; }
+            for n in $nums; do
+              ok=0
+              for attempt in 1 2 3; do
+                if gh api -X PATCH "repos/$REPO/issues/$n" -f state=closed -f state_reason=completed --silent; then ok=1; break; fi
+                sleep $((attempt * 5))
+              done
+              if [ "$ok" = 1 ]; then echo "stängde #$n ($label)"; else echo "::warning::kunde inte stänga #$n"; failed=1; fi
+            done
           done
+          exit $failed
